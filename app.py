@@ -1,36 +1,54 @@
 import streamlit as st
 import whisper
+import tempfile
 import os
-
 st.title("Voice Message Translator")
-st.write("Upload an audio file to transcribe")
 
-# Upload audio file
-audio_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a"])
 
-if audio_file is not None:
+audio_file = st.file_uploader("Upload audio", type=["mp3", "wav", "m4a"])
+
+
+# Loading the model- using 'large' model for better results
+@st.cache_resource
+def load_model():
+    return whisper.load_model("large")  
+
+if audio_file:
     st.audio(audio_file)
-    
-    if st.button("Transcribe"):
-        with st.spinner("Transcribing..."):
-            file_ext = audio_file.name.split(".")[-1]
-            temp_file = 'a'
-            # Save uploaded file temporarily
-            with open("temp_audio.wav", "wb") as f:
-                f.write(audio_file.getbuffer())
-            
-            # Load Whisper model (using 'base' for speed)
-            model = whisper.load_model("base")
-            
-            # Transcribe
-            result = model.transcribe("temp_audio.wav",
-                                      language="en",
-                                      task= "transcribe",
-                                      fp16=False)
-            
-            st.success("Transcription complete!")
-            st.write("**Original Text:**")
-            st.write(result["text"])
-            
-            # Clean up
-            os.remove("temp_audio.wav")
+
+    if st.button("Translate"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp.write(audio_file.read())
+            audio_path = tmp.name
+
+        model = load_model()
+
+        with st.spinner("Processing..."):
+            # Hindi transcription
+            hindi_result = model.transcribe(
+                audio_path,
+                task="transcribe",
+                language="hi"
+            )
+
+            # English translation
+            english_result = model.transcribe(
+                audio_path,
+                task="translate"
+            )
+
+        os.remove(audio_path)
+
+        hindi_text = hindi_result["text"].strip()
+        english_text = english_result["text"].strip()
+
+        st.success("Done!")
+
+     
+        st.markdown(
+            f"""
+**Original (Hindi):** {hindi_text}  
+
+**English:** {english_text}
+"""
+        )
