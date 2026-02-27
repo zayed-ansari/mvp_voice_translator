@@ -11,7 +11,7 @@ st.subheader("Record Audio")
 audio_rec = audiorecorder('Start Recording', 'Stop Recording')
 @st.cache_resource
 def load_model():
-    return whisper.load_model('large')
+    return whisper.load_model('large', device="cpu")
 audio_path = None
 if audio_file:
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
@@ -24,34 +24,46 @@ elif len(audio_rec) > 0:
          audio_path = tmp.name
     st.audio(audio_path)
 
+languages = {"Hindi": "hi", "English": "en","Spanish": "es", "French": "fr", "Arabic": "ar"}
+
+source_lang = st.selectbox("Source Language", list(languages.keys()))
+target_lang = st.selectbox("Target Language", list(languages.keys()))
+
+source_code = languages[source_lang]
+target_code = languages[target_lang]
 try:
+    import torch
+    torch.cuda.empty_cache()
+    
     if audio_path and st.button('Translate'):
         model = load_model()
         with st.spinner("Transcribing..."):
-        
-                #  Hindi transcription
-            hindi_result = model.transcribe(
+            # Transcription
+            result = model.transcribe(
                 audio_path,
                 task="transcribe",
-                language="hi"
+                beam_size = 1,
+                best_of = 1,
+                without_timestamps=True,
+                language= source_code
             )
 
         os.remove(audio_path)
-        # Translation part (translating to english!)
+        # Translation part (translating to target language!)
         with st.spinner("Translating..."):
-                english_text = GoogleTranslator(
-                    source="hi",
-                    target="en"
-                ).translate(hindi_result['text'])
+                text = GoogleTranslator(
+                    source=source_code,
+                    target= target_code
+                ).translate(result['text'])
 
         st.success("Done!")
 
         st.markdown(f"""
-    **Original (Hindi):**  
-    {hindi_result['text']}
+    **Original ({source_lang}):**  
+    {result['text']}
 
-    **English:**  
-    {english_text}
+    **Tranlated {target_lang}:**  
+    {text}
     """)
 
 except Exception as e:
